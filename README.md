@@ -1,8 +1,16 @@
 # Archival Cursive Transcriber
 
 A command-line tool that transcribes handwritten cursive documents — letters,
-diaries, ledgers, deeds, meeting minutes — from scanned images or PDFs, using
-the Claude API's vision capabilities.
+diaries, ledgers, deeds, meeting minutes — from scanned images or PDFs.
+
+Two engines are available:
+
+- **Claude engine** (default) — uses the Claude API's vision capabilities.
+  Most accurate on degraded archival material; requires an API key.
+- **Local engine** (`--engine local`) — runs Microsoft's open-source TrOCR
+  model on your own machine. **No API key, no account, free**, and works
+  offline after a one-time model download. Less accurate on difficult
+  material — see [No-API-key mode](#no-api-key-mode-local-engine).
 
 It is built for archival material: faded ink, bleed-through, stained or
 damaged paper, historical letterforms, and marginalia. Transcripts follow
@@ -140,9 +148,99 @@ pip install -e .
 |---|---|
 | `python3: command not found` | Install Python (Step 1); on Windows try `python` or `py` |
 | `No module named anthropic` | The virtual environment isn't active (Step 3) or dependencies weren't installed (Step 4) |
-| `error: invalid or missing API key` | The `ANTHROPIC_API_KEY` variable isn't set in *this* terminal session (Step 5) — `echo $ANTHROPIC_API_KEY` (macOS/Linux) or `echo $env:ANTHROPIC_API_KEY` (PowerShell) should print your key |
+| `error: invalid or missing API key` | The `ANTHROPIC_API_KEY` variable isn't set in *this* terminal session (Step 5) — `echo $ANTHROPIC_API_KEY` (macOS/Linux) or `echo $env:ANTHROPIC_API_KEY` (PowerShell) should print your key. Or skip keys entirely with `--engine local` (see below). |
+| `Local mode needs extra packages` | Install them: `pip install -r requirements-local.txt` |
 | `... is above the 5 MB image limit` | Install Pillow (`pip install Pillow`) to enable automatic downscaling, or resize the scan |
 | `error: rate limited` | You've hit your API tier's request limit — wait a minute and re-run; finished transcripts are kept |
+
+## No-API-key mode (local engine)
+
+If you can't (or don't want to) use an API key, the tool has a second engine
+that runs entirely on your own machine using Microsoft's open-source
+**TrOCR** handwriting-recognition model. Nothing is sent to any service and
+no account is needed — the only network access is a one-time model download
+from Hugging Face; after that it works fully offline.
+
+**Set expectations first:** TrOCR was trained on modern English handwriting.
+On clean, well-scanned material it does a reasonable job, but on faded ink,
+damaged paper, historical letterforms, and non-English documents it is
+**markedly less accurate** than the Claude engine. Lines the model is unsure
+about are flagged `[low confidence]` in the output — always proofread against
+the original scan.
+
+### Local mode installation
+
+Follow Steps 1–3 of the installation above (Python, code, virtual
+environment) — then instead of Steps 4–5:
+
+1. Install the local-engine dependencies (~1–2 GB, mostly PyTorch):
+
+   ```bash
+   pip install -r requirements-local.txt
+   ```
+
+   On a machine without an NVIDIA GPU you can install the much smaller
+   CPU-only PyTorch first:
+
+   ```bash
+   pip install torch --index-url https://download.pytorch.org/whl/cpu
+   pip install -r requirements-local.txt
+   ```
+
+2. There is no Step 5 — no API key is needed.
+
+3. Verify:
+
+   ```bash
+   python -m transcriber path/to/letter.jpg --engine local --stdout
+   ```
+
+   The first run downloads the model (~350 MB) and caches it under
+   `~/.cache/huggingface/`; later runs work offline.
+
+### Local mode usage
+
+Everything works the same — just add `--engine local`:
+
+```bash
+python -m transcriber scans/ --engine local -o transcripts/
+python -m transcriber ledger.png --engine local --json   # per-line confidences
+```
+
+For better accuracy at the cost of a bigger download (~2.4 GB) and slower
+runs, use the large model:
+
+```bash
+python -m transcriber scans/ --engine local \
+  --local-model microsoft/trocr-large-handwritten
+```
+
+Notes and limits of local mode:
+
+- `--context`, `--language`, and `--effort` only apply to the Claude engine
+  and are ignored locally.
+- PDF input additionally needs `pypdfium2` (included in
+  `requirements-local.txt`).
+- Pages are split into lines automatically; if a scan is very faint or
+  skewed, the segmenter may miss lines — increasing scan contrast helps.
+- JSON output in local mode reports a confidence score per line instead of
+  the Claude engine's uncertain-reading analysis.
+
+## Which engine should I use?
+
+| | Claude engine (default) | Local engine (`--engine local`) |
+|---|---|---|
+| API key / account | Required | None |
+| Cost | ~cents per page | Free |
+| Works offline | No | Yes (after model download) |
+| Degraded/historical cursive | Strong | Weak-to-fair |
+| Uncertainty marking | `[word?]`, `[illegible]`, alternatives with reasons | `[low confidence]` per line |
+| Marginalia, crossed-out text, notes section | Yes | No |
+| Speed | ~10–60 s per page | Seconds (GPU) to ~1 min (CPU) per page |
+
+A practical workflow for large collections: run everything through the local
+engine for a free first pass, then re-run the important or hard-to-read
+documents through the Claude engine.
 
 ## Usage
 

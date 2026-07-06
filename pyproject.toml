@@ -11,6 +11,13 @@ dependencies = ["anthropic>=0.40"]
 
 [project.optional-dependencies]
 images = ["Pillow>=10"]
+local = [
+    "torch>=2.0",
+    "transformers>=4.35",
+    "Pillow>=10",
+    "numpy>=1.24",
+    "pypdfium2>=4",
+]
 
 [project.scripts]
 transcribe = "transcriber.cli:main"

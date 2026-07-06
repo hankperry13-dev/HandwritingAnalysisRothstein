@@ -64,6 +64,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Scan files (.jpg, .png, .gif, .webp, .pdf) or directories of scans",
     )
     parser.add_argument(
+        "--engine",
+        choices=["claude", "local"],
+        default="claude",
+        help=(
+            "'claude' (default) uses the Claude API and needs an API key; "
+            "'local' runs a TrOCR model on your machine with no API key "
+            "(install extras: pip install -r requirements-local.txt)"
+        ),
+    )
+    parser.add_argument(
+        "--local-model",
+        default=None,
+        help=(
+            "Hugging Face model for --engine local "
+            "(default: microsoft/trocr-base-handwritten; try "
+            "microsoft/trocr-large-handwritten for better accuracy)"
+        ),
+    )
+    parser.add_argument(
         "--context",
         help=(
             "Background that helps with ambiguous readings, e.g. "
@@ -125,29 +144,71 @@ def main(argv: list[str] | None = None) -> int:
     if args.output_dir is not None:
         args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    client = anthropic.Anthropic()
+    local = None
+    client = None
+    if args.engine == "local":
+        for flag, name in [
+            (args.context, "--context"),
+            (args.language, "--language"),
+        ]:
+            if flag:
+                print(
+                    f"note: {name} is only used by the Claude engine and is "
+                    "ignored in local mode.",
+                    file=sys.stderr,
+                )
+        try:
+            from transcriber.local_engine import DEFAULT_LOCAL_MODEL, LocalTranscriber
+
+            model_name = args.local_model or DEFAULT_LOCAL_MODEL
+            print(
+                f"Loading local model {model_name} (first run downloads it "
+                "from Hugging Face; afterwards this works offline)...",
+                file=sys.stderr,
+            )
+            local = LocalTranscriber(model_name)
+            print(f"Model loaded on {local.device}.", file=sys.stderr)
+        except RuntimeError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
+        except Exception as exc:  # model download/load failures
+            print(
+                f"error: could not load local model '{model_name}': {exc}\n"
+                "If this is a network error, check your connection — the "
+                "first run needs to download the model from huggingface.co. "
+                "Afterwards local mode works offline.",
+                file=sys.stderr,
+            )
+            return 1
+    else:
+        client = anthropic.Anthropic()
+
     failures = 0
 
     for index, path in enumerate(files, start=1):
         print(f"[{index}/{len(files)}] {path}", file=sys.stderr)
         stream_to_terminal = not args.quiet and not args.stdout
+        on_text = (
+            (lambda t: print(t, end="", flush=True, file=sys.stderr))
+            if stream_to_terminal
+            else None
+        )
 
         try:
-            result = transcribe_file(
-                client,
-                path,
-                model=args.model,
-                context=args.context,
-                language=args.language,
-                effort=args.effort,
-                max_tokens=args.max_tokens,
-                as_json=args.json,
-                on_text=(
-                    (lambda t: print(t, end="", flush=True, file=sys.stderr))
-                    if stream_to_terminal
-                    else None
-                ),
-            )
+            if local is not None:
+                result = local.transcribe_file(path, as_json=args.json, on_text=on_text)
+            else:
+                result = transcribe_file(
+                    client,
+                    path,
+                    model=args.model,
+                    context=args.context,
+                    language=args.language,
+                    effort=args.effort,
+                    max_tokens=args.max_tokens,
+                    as_json=args.json,
+                    on_text=on_text,
+                )
         except anthropic.AuthenticationError:
             print(
                 "error: invalid or missing API key. Set ANTHROPIC_API_KEY or "
@@ -162,7 +223,7 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 1
-        except (anthropic.APIError, ValueError, OSError) as exc:
+        except (anthropic.APIError, RuntimeError, ValueError, OSError) as exc:
             print(f"error: {path.name}: {exc}", file=sys.stderr)
             failures += 1
             continue
@@ -179,11 +240,12 @@ def main(argv: list[str] | None = None) -> int:
         else:
             out = output_path_for(path, args.output_dir, args.json)
             out.write_text(result.text + "\n", encoding="utf-8")
-            print(
-                f"  -> {out}  "
-                f"({result.input_tokens} in / {result.output_tokens} out tokens)",
-                file=sys.stderr,
+            usage = (
+                f"  ({result.input_tokens} in / {result.output_tokens} out tokens)"
+                if result.input_tokens or result.output_tokens
+                else ""
             )
+            print(f"  -> {out}{usage}", file=sys.stderr)
 
     if failures:
         print(f"{failures} of {len(files)} file(s) failed.", file=sys.stderr)

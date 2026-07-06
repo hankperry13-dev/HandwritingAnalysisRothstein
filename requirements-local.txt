@@ -1,0 +1,9 @@
+# Extra dependencies for --engine local (no API key needed).
+# Tip: on machines without a GPU, install the smaller CPU-only torch first:
+#   pip install torch --index-url https://download.pytorch.org/whl/cpu
+torch>=2.0
+transformers>=4.35
+Pillow>=10
+numpy>=1.24
+# Optional: PDF input in local mode
+pypdfium2>=4
