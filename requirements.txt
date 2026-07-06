@@ -1,0 +1,3 @@
+anthropic>=0.40
+# Optional: enables automatic downscaling of scans larger than 5 MB
+Pillow>=10
