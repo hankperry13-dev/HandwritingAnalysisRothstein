@@ -18,20 +18,131 @@ Each transcript ends with a **Notes** section summarizing legibility, dates,
 names, places, and the most significant uncertain readings — useful for
 cataloging.
 
-## Setup
+## Installation
 
-Requires Python 3.10+.
+### Step 1 — Check your Python version
 
-```bash
-pip install -r requirements.txt      # anthropic + optional Pillow
-export ANTHROPIC_API_KEY=sk-ant-...  # or `ant auth login`
-```
-
-Optionally install as a command:
+The tool requires **Python 3.10 or newer**. Check what you have:
 
 ```bash
-pip install -e .                      # provides the `transcribe` command
+python3 --version
 ```
+
+If that prints `Python 3.10.x` or higher, you're good. If the command isn't
+found or the version is older, install Python from
+[python.org/downloads](https://www.python.org/downloads/) (macOS/Windows) or
+your package manager (Linux, e.g. `sudo apt install python3 python3-venv python3-pip`).
+
+> On Windows, the command may be `python` or `py` instead of `python3` — use
+> whichever works in the steps below.
+
+### Step 2 — Get the code
+
+If you haven't already cloned this repository:
+
+```bash
+git clone https://github.com/hankperry13-dev/HandwritingAnalysisRothstein.git
+cd HandwritingAnalysisRothstein
+```
+
+(Or download it as a ZIP from GitHub and unzip it, then `cd` into the folder.)
+
+### Step 3 — Create and activate a virtual environment (recommended)
+
+This keeps the tool's dependencies separate from the rest of your system:
+
+```bash
+python3 -m venv .venv
+```
+
+Then activate it — this differs by operating system:
+
+| OS / shell | Command |
+|---|---|
+| macOS / Linux | `source .venv/bin/activate` |
+| Windows (PowerShell) | `.venv\Scripts\Activate.ps1` |
+| Windows (cmd.exe) | `.venv\Scripts\activate.bat` |
+
+You'll know it worked when your prompt shows `(.venv)` at the start. You'll
+need to re-activate it in each new terminal session before using the tool.
+
+### Step 4 — Install the dependencies
+
+With the virtual environment active:
+
+```bash
+pip install -r requirements.txt
+```
+
+This installs two packages:
+
+- `anthropic` — the Claude API client (required)
+- `Pillow` — image handling, used to automatically shrink scans that are over
+  the 5 MB API limit (optional but recommended)
+
+### Step 5 — Get and set your Anthropic API key
+
+The tool calls the Claude API, which requires an API key:
+
+1. Sign up or log in at [console.anthropic.com](https://console.anthropic.com/)
+2. Go to **API Keys** and click **Create Key**
+3. Copy the key (it starts with `sk-ant-`) — it's shown only once
+
+Then make the key available to the tool:
+
+**macOS / Linux:**
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-your-key-here
+```
+
+This lasts for the current terminal session. To make it permanent, add that
+line to your shell profile (`~/.zshrc` on modern macOS, `~/.bashrc` on most
+Linux systems), then open a new terminal.
+
+**Windows (PowerShell):**
+
+```powershell
+$env:ANTHROPIC_API_KEY = "sk-ant-your-key-here"       # current session only
+setx ANTHROPIC_API_KEY "sk-ant-your-key-here"          # permanent (new terminals)
+```
+
+> Treat the key like a password: don't commit it to git or paste it into
+> shared documents. Note that API usage is billed per token — a typical
+> single-page letter costs a few cents to transcribe.
+
+### Step 6 — Verify the installation
+
+```bash
+python -m transcriber --help
+```
+
+If you see the usage text with the list of options, everything is installed
+correctly. Then do a real end-to-end check with one scan:
+
+```bash
+python -m transcriber path/to/some-letter.jpg --stdout
+```
+
+You should see the transcription stream into your terminal.
+
+### Optional — install as a `transcribe` command
+
+If you'd rather type `transcribe letter.jpg` than `python -m transcriber letter.jpg`:
+
+```bash
+pip install -e .
+```
+
+### Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `python3: command not found` | Install Python (Step 1); on Windows try `python` or `py` |
+| `No module named anthropic` | The virtual environment isn't active (Step 3) or dependencies weren't installed (Step 4) |
+| `error: invalid or missing API key` | The `ANTHROPIC_API_KEY` variable isn't set in *this* terminal session (Step 5) — `echo $ANTHROPIC_API_KEY` (macOS/Linux) or `echo $env:ANTHROPIC_API_KEY` (PowerShell) should print your key |
+| `... is above the 5 MB image limit` | Install Pillow (`pip install Pillow`) to enable automatic downscaling, or resize the scan |
+| `error: rate limited` | You've hit your API tier's request limit — wait a minute and re-run; finished transcripts are kept |
 
 ## Usage
 
