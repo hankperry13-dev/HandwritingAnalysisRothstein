@@ -12,6 +12,46 @@ Two engines are available:
   offline after a one-time model download. Less accurate on difficult
   material — see [No-API-key mode](#no-api-key-mode-local-engine).
 
+## Quick start (easiest way to launch)
+
+You need [Python 3.10+](https://www.python.org/downloads/) installed and this
+repository downloaded (clone it, or GitHub → **Code → Download ZIP** → unzip).
+Then open a terminal in the project folder and run **one command**:
+
+**macOS / Linux:**
+
+```bash
+./run.sh path/to/letter.jpg
+```
+
+**Windows** (Command Prompt or PowerShell):
+
+```bat
+run path\to\letter.jpg
+```
+
+That's it. The launcher does everything else for you, automatically:
+
+- first run only: sets up a private Python environment and installs the
+  dependencies (takes a couple of minutes)
+- first run only: asks you to paste your Anthropic API key
+  ([create one here](https://console.anthropic.com/)) and remembers it, so
+  you're never asked again
+- transcribes the file and writes `letter.transcript.md` next to it
+
+More examples:
+
+```bash
+./run.sh scans/ -o transcripts/          # a whole folder of scans
+./run.sh letter.jpg --engine local       # no API key needed (local model)
+./run.sh --help                          # all options
+```
+
+(On Windows, use `run` instead of `./run.sh` in each example.)
+
+The sections below cover manual installation and every option in detail — you
+only need them if you want more control than the launcher gives you.
+
 It is built for archival material: faded ink, bleed-through, stained or
 damaged paper, historical letterforms, and marginalia. Transcripts follow
 standard paleography conventions so uncertainty is always visible:
@@ -26,7 +66,10 @@ Each transcript ends with a **Notes** section summarizing legibility, dates,
 names, places, and the most significant uncertain readings — useful for
 cataloging.
 
-## Installation
+## Manual installation
+
+Prefer to set things up yourself instead of using the launcher? Follow these
+steps.
 
 ### Step 1 — Check your Python version
 
@@ -149,6 +192,7 @@ pip install -e .
 | `python3: command not found` | Install Python (Step 1); on Windows try `python` or `py` |
 | `No module named anthropic` | The virtual environment isn't active (Step 3) or dependencies weren't installed (Step 4) |
 | `error: invalid or missing API key` | The `ANTHROPIC_API_KEY` variable isn't set in *this* terminal session (Step 5) — `echo $ANTHROPIC_API_KEY` (macOS/Linux) or `echo $env:ANTHROPIC_API_KEY` (PowerShell) should print your key. Or skip keys entirely with `--engine local` (see below). |
+| Mistyped the key in the launcher prompt | Delete the `.env` file in the project folder and run the launcher again — it will ask for the key afresh |
 | `Local mode needs extra packages` | Install them: `pip install -r requirements-local.txt` |
 | `... is above the 5 MB image limit` | Install Pillow (`pip install Pillow`) to enable automatic downscaling, or resize the scan |
 | `error: rate limited` | You've hit your API tier's request limit — wait a minute and re-run; finished transcripts are kept |
